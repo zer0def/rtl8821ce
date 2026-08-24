@@ -902,8 +902,10 @@ int nat25_db_handle(_adapter *priv, struct sk_buff *skb, int method)
 		 (protocol == __constant_htons(ETH_P_AARP))) {
 		unsigned char ipx_header[2] = {0xFF, 0xFF};
 		struct ipxhdr	*ipx = NULL;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7, 2, 0))
 		struct elapaarp	*ea = NULL;
 		struct ddpehdr	*ddp = NULL;
+#endif  // if (LINUX_VERSION_CODE < KERNEL_VERSION(7, 2, 0))
 		unsigned char *framePtr = skb->data + ETH_HLEN;
 
 		if (protocol == __constant_htons(ETH_P_IPX)) {
@@ -919,8 +921,10 @@ int nat25_db_handle(_adapter *priv, struct sk_buff *skb, int method)
 
 				if (*framePtr == snap_8022_type) {
 					unsigned char ipx_snap_id[5] = {0x0, 0x0, 0x0, 0x81, 0x37};		/* IPX SNAP ID */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7, 2, 0))
 					unsigned char aarp_snap_id[5] = {0x00, 0x00, 0x00, 0x80, 0xF3};	/* Apple Talk AARP SNAP ID */
 					unsigned char ddp_snap_id[5] = {0x08, 0x00, 0x07, 0x80, 0x9B};	/* Apple Talk DDP SNAP ID */
+#endif  // if (LINUX_VERSION_CODE < KERNEL_VERSION(7, 2, 0))
 
 					framePtr += 3;	/* eliminate the 802.2 header */
 
@@ -929,6 +933,7 @@ int nat25_db_handle(_adapter *priv, struct sk_buff *skb, int method)
 
 						RTW_INFO("NAT25: Protocol=IPX (Ethernet SNAP)\n");
 						ipx = (struct ipxhdr *)framePtr;
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7, 2, 0))
 					} else if (!memcmp(aarp_snap_id, framePtr, 5)) {
 						framePtr += 5;	/* eliminate the SNAP header */
 
@@ -937,6 +942,7 @@ int nat25_db_handle(_adapter *priv, struct sk_buff *skb, int method)
 						framePtr += 5;	/* eliminate the SNAP header */
 
 						ddp = (struct ddpehdr *)framePtr;
+#endif  // if (LINUX_VERSION_CODE < KERNEL_VERSION(7, 2, 0))
 					} else {
 						DEBUG_WARN("NAT25: Protocol=Ethernet SNAP %02x%02x%02x%02x%02x\n", framePtr[0],
 							framePtr[1], framePtr[2], framePtr[3], framePtr[4]);
@@ -1024,6 +1030,7 @@ int nat25_db_handle(_adapter *priv, struct sk_buff *skb, int method)
 		}
 		#endif
 
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(7, 2, 0))
 		/*   AARP  */
 	#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 		else if (ea != NULL) {
@@ -1118,7 +1125,7 @@ int nat25_db_handle(_adapter *priv, struct sk_buff *skb, int method)
 				return -1;
 			}
 		}
-
+#endif  // if (LINUX_VERSION_CODE < KERNEL_VERSION(7, 2, 0))
 		return -1;
 	}
 
