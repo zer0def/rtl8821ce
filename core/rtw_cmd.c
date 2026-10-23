@@ -2867,6 +2867,9 @@ void rtw_iface_dynamic_chk_wk_hdl(_adapter *padapter)
         rtw_cfgvendor_rssi_monitor_evt(padapter);
 #endif
 
+#ifdef CONFIG_IOCTL_CFG80211
+	rtw_cfg80211_cqm_rssi_check(padapter);
+#endif
 
 }
 void rtw_dynamic_chk_wk_hdl(_adapter *padapter)

@@ -405,6 +405,8 @@ static inline void rtw_cfg80211_connect_result(struct wireless_dev *wdev,
 u8 rtw_cfg80211_ch_switch_notify(_adapter *adapter, u8 ch, u8 bw, u8 offset, u8 ht);
 #endif
 
+void rtw_cfg80211_cqm_rssi_check(_adapter *padapter);
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)) && (LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0))
 #define NL80211_BAND_2GHZ IEEE80211_BAND_2GHZ
 #define NL80211_BAND_5GHZ IEEE80211_BAND_5GHZ

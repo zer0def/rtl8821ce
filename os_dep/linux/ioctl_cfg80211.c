@@ -4195,6 +4195,63 @@ static int cfg80211_rtw_set_power_mgmt(struct wiphy *wiphy,
 	return 0;
 }
 
+static int cfg80211_rtw_set_cqm_rssi_config(struct wiphy *wiphy,
+					    struct net_device *ndev,
+					    s32 rssi_thold, u32 rssi_hyst)
+{
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
+	struct recv_priv *precvpriv;
+
+	if (!padapter)
+		return -EINVAL;
+
+	precvpriv = &padapter->recvpriv;
+	precvpriv->cqm_rssi_thold = rssi_thold;
+	precvpriv->cqm_rssi_hyst = rssi_hyst;
+	precvpriv->cqm_low_triggered = false;
+
+	RTW_INFO(FUNC_NDEV_FMT" rssi_thold:%d, rssi_hyst:%u\n",
+		 FUNC_NDEV_ARG(ndev), rssi_thold, rssi_hyst);
+
+	return 0;
+}
+
+void rtw_cfg80211_cqm_rssi_check(_adapter *padapter)
+{
+	s32 cur_rssi;
+	struct recv_priv *precvpriv;
+
+	if (!padapter || !padapter->pnetdev || !padapter->rtw_wdev)
+		return;
+
+	if (RTW_CANNOT_RUN(padapter) || padapter->ndev_unregistering)
+		return;
+
+	if (check_fwstate(&padapter->mlmepriv, _FW_LINKED) != _TRUE) {
+		padapter->recvpriv.cqm_low_triggered = false;
+		return;
+	}
+
+	precvpriv = &padapter->recvpriv;
+	if (precvpriv->cqm_rssi_thold == 0)
+		return;
+
+	cur_rssi = translate_percentage_to_dbm(precvpriv->signal_strength);
+
+	if (!precvpriv->cqm_low_triggered && cur_rssi <= precvpriv->cqm_rssi_thold) {
+		precvpriv->cqm_low_triggered = true;
+		cfg80211_cqm_rssi_notify(padapter->pnetdev,
+					 NL80211_CQM_RSSI_THRESHOLD_EVENT_LOW,
+					 cur_rssi, GFP_ATOMIC);
+	} else if (precvpriv->cqm_low_triggered &&
+		   cur_rssi >= (precvpriv->cqm_rssi_thold + (s32)precvpriv->cqm_rssi_hyst)) {
+		precvpriv->cqm_low_triggered = false;
+		cfg80211_cqm_rssi_notify(padapter->pnetdev,
+					 NL80211_CQM_RSSI_THRESHOLD_EVENT_HIGH,
+					 cur_rssi, GFP_ATOMIC);
+	}
+}
+
 static int cfg80211_rtw_set_pmksa(struct wiphy *wiphy,
 				  struct net_device *ndev,
 				  struct cfg80211_pmksa *pmksa)
@@ -9779,6 +9836,7 @@ static struct cfg80211_ops rtw_cfg80211_ops = {
 	.set_tx_power = cfg80211_rtw_set_txpower,
 	.get_tx_power = cfg80211_rtw_get_txpower,
 	.set_power_mgmt = cfg80211_rtw_set_power_mgmt,
+	.set_cqm_rssi_config = cfg80211_rtw_set_cqm_rssi_config,
 	.set_pmksa = cfg80211_rtw_set_pmksa,
 	.del_pmksa = cfg80211_rtw_del_pmksa,
 	.flush_pmksa = cfg80211_rtw_flush_pmksa,

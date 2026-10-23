@@ -566,19 +566,22 @@ int rtw_mp_txpower_index(struct net_device *dev,
 		txpower_inx = mpt_ProQueryCalTxPower(padapter, rfpath);
 		sprintf(extra, " %d", txpower_inx);
 	} else {
+		int pos = 0;
+		int max_len = IW_CUSTOM_MAX;
+
 		txpower_inx = mpt_ProQueryCalTxPower(padapter, 0);
-		sprintf(extra, "patha=%d", txpower_inx);
+		pos += scnprintf(extra + pos, max_len - pos, "patha=%d", txpower_inx);
 		if (phal_data->rf_type > RF_1T2R) {
 			txpower_inx = mpt_ProQueryCalTxPower(padapter, 1);
-			sprintf(extra, "%s,pathb=%d", extra, txpower_inx);
+			pos += scnprintf(extra + pos, max_len - pos, ",pathb=%d", txpower_inx);
 		}
 		if (phal_data->rf_type > RF_2T4R) {
 			txpower_inx = mpt_ProQueryCalTxPower(padapter, 2);
-			sprintf(extra, "%s,pathc=%d", extra, txpower_inx);
+			pos += scnprintf(extra + pos, max_len - pos, ",pathc=%d", txpower_inx);
 		}
 		if (phal_data->rf_type > RF_3T4R) {
 			txpower_inx = mpt_ProQueryCalTxPower(padapter, 3);
-			sprintf(extra, "%s,pathd=%d", extra, txpower_inx);
+			pos += scnprintf(extra + pos, max_len - pos, ",pathd=%d", txpower_inx);
 		}
 	}
 	wrqu->length = strlen(extra);
@@ -2206,12 +2209,15 @@ int rtw_efuse_mask_file(struct net_device *dev,
 
 		 } while (count < 64);
 
+		int pos = 0;
+		int max_len = IW_CUSTOM_MAX;
+
 		for (i = 0; i < count; i++)
-			sprintf(extra, "%s:%02x", extra, maskfileBuffer[i]);
+			pos += scnprintf(extra + pos, max_len - pos, ":%02x", maskfileBuffer[i]);
 
 		padapter->registrypriv.bFileMaskEfuse = _TRUE;
 
-		sprintf(extra, "%s\nLoad Efuse Mask data %d hex ok\n", extra, count);
+		pos += scnprintf(extra + pos, max_len - pos, "\nLoad Efuse Mask data %d hex ok\n", count);
 		wrqu->data.length = strlen(extra);
 		return 0;
 	}
@@ -2634,16 +2640,22 @@ todo:
 	mptbt_BtControlProcess(padapter, &BtReq);
 
 	if (readtherm == 0) {
-		sprintf(extra, "BT thermal=");
+		int pos = 0;
+		int max_len = IW_CUSTOM_MAX;
+
+		pos += scnprintf(extra + pos, max_len - pos, "BT thermal=");
 		for (i = 4; i < pMptCtx->mptOutLen; i++) {
 			if ((pMptCtx->mptOutBuf[i] == 0x00) && (pMptCtx->mptOutBuf[i + 1] == 0x00))
 				goto exit;
 
-			sprintf(extra, "%s %d ", extra, (pMptCtx->mptOutBuf[i] & 0x1f));
+			pos += scnprintf(extra + pos, max_len - pos, "%d ", (pMptCtx->mptOutBuf[i] & 0x1f));
 		}
 	} else {
+		int pos = 0;
+		int max_len = IW_CUSTOM_MAX;
+
 		for (i = 4; i < pMptCtx->mptOutLen; i++)
-			sprintf(extra, "%s 0x%x ", extra, pMptCtx->mptOutBuf[i]);
+			pos += scnprintf(extra + pos, max_len - pos, "0x%x ", pMptCtx->mptOutBuf[i]);
 	}
 
 exit:

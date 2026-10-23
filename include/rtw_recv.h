@@ -441,6 +441,12 @@ struct recv_priv {
 	/* s8 RxRssi[2]; */
 	/* int FalseAlmCnt_all; */
 
+#if defined(CONFIG_IOCTL_CFG80211)
+	s32 cqm_rssi_thold;
+	u32 cqm_rssi_hyst;
+	bool cqm_low_triggered;
+#endif
+
 
 #ifdef CONFIG_NEW_SIGNAL_STAT_PROCESS
 	_timer signal_stat_timer;

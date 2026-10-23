@@ -2422,15 +2422,19 @@ u32 mp_query_psd(PADAPTER pAdapter, u8 *data)
 		sscanf(data, "pts=%d,start=%d,stop=%d", &psd_pts, &psd_start, &psd_stop);
 
 	data[0] = '\0';
+	{
+		int pos = 0;
+		int max_len = 4096;
 
-	i = psd_start;
-	while (i < psd_stop) {
-		if (i >= psd_pts)
-			psd_data = rtw_GetPSDData(pAdapter, i - psd_pts);
-		else
-			psd_data = rtw_GetPSDData(pAdapter, i);
-		sprintf(data, "%s%x ", data, psd_data);
-		i++;
+		i = psd_start;
+		while (i < psd_stop) {
+			if (i >= psd_pts)
+				psd_data = rtw_GetPSDData(pAdapter, i - psd_pts);
+			else
+				psd_data = rtw_GetPSDData(pAdapter, i);
+			pos += scnprintf((char *)data + pos, max_len - pos, "%x ", psd_data);
+			i++;
+		}
 	}
 
 #ifdef CONFIG_LONG_DELAY_ISSUE

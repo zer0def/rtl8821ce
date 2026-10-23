@@ -1946,8 +1946,10 @@ exit:
 static void rtw_dev_remove(struct pci_dev *pdev)
 {
 	struct dvobj_priv *pdvobjpriv = pci_get_drvdata(pdev);
-	_adapter *padapter = dvobj_get_primary_adapter(pdvobjpriv);
-	struct net_device *pnetdev = padapter->pnetdev;
+	_adapter *padapter;
+
+	if (!pdvobjpriv)
+		return;
 
 	if (pdvobjpriv->processing_dev_remove == _TRUE) {
 		RTW_WARN("%s-line%d: Warning! device has been removed!\n", __func__, __LINE__);
@@ -1957,6 +1959,7 @@ static void rtw_dev_remove(struct pci_dev *pdev)
 	RTW_INFO("+rtw_dev_remove\n");
 
 	pdvobjpriv->processing_dev_remove = _TRUE;
+	padapter = dvobj_get_primary_adapter(pdvobjpriv);
 
 	if (unlikely(!padapter))
 		return;
