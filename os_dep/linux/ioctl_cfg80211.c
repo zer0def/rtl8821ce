@@ -1665,6 +1665,7 @@ static int cfg80211_rtw_add_key(struct wiphy *wiphy
 	, const u8 *mac_addr, struct key_params *params)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	if(!wdev->netdev) return -EINVAL;
 	struct net_device *ndev = wdev->netdev;
 #endif
 	char *alg_name;
@@ -1821,6 +1822,7 @@ static int cfg80211_rtw_get_key(struct wiphy *wiphy
 	, void (*callback)(void *cookie, struct key_params *))
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	if(!wdev->netdev) return -EINVAL;
 	struct net_device *ndev = wdev->netdev;
 #endif
 #define GET_KEY_PARAM_FMT_S " keyid=%d"
@@ -1996,6 +1998,7 @@ static int cfg80211_rtw_del_key(struct wiphy *wiphy,
 #endif /* (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) */
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	if(!wdev->netdev) return -EINVAL;
 	struct net_device *ndev = wdev->netdev;
 #endif
 	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
@@ -2076,6 +2079,7 @@ int cfg80211_rtw_set_default_mgmt_key(struct wiphy *wiphy
 )
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	if(!wdev->netdev) return -EINVAL;
 	struct net_device *ndev = wdev->netdev;
 #endif
 #define SET_DEF_KEY_PARAM_FMT " key_index=%d"
@@ -2235,6 +2239,7 @@ static int cfg80211_rtw_get_station(struct wiphy *wiphy,
 	struct station_info *sinfo)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	if(!wdev->netdev) return -EINVAL;
 	struct net_device *ndev = wdev->netdev;
 #endif
 	int ret = 0;
@@ -5288,6 +5293,7 @@ static int	cfg80211_rtw_add_station(struct wiphy *wiphy,
 	struct station_parameters *params)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	if(!wdev->netdev) return -EINVAL;
 	struct net_device *ndev = wdev->netdev;
 #endif
 	int ret = 0;
@@ -5470,6 +5476,7 @@ static int	cfg80211_rtw_del_station(struct wiphy *wiphy,
 )
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	if(!wdev->netdev) return -EINVAL;
 	struct net_device *ndev = wdev->netdev;
 #endif
 	int ret = 0;
@@ -5582,6 +5589,7 @@ static int	cfg80211_rtw_change_station(struct wiphy *wiphy,
 	struct station_parameters *params)
 {
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	if(!wdev->netdev) return -EINVAL;
 	struct net_device *ndev = wdev->netdev;
 #endif
 #ifdef CONFIG_RTW_MESH
@@ -5741,6 +5749,7 @@ static int	cfg80211_rtw_dump_station(struct wiphy *wiphy,
 #define DBG_DUMP_STATION 0
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 1, 0))
+	if(!wdev->netdev) return -EINVAL;
 	struct net_device *ndev = wdev->netdev;
 #endif
 	int ret = 0;
