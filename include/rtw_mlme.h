@@ -330,6 +330,8 @@ struct cfg80211_wifidirect_info {
 	u64 remain_on_ch_cookie;
 	bool is_ro_ch;
 	struct wireless_dev *ro_ch_wdev;
+	u8 remain_on_ch_rx_addr[ETH_ALEN];
+	bool remain_on_ch_rx_addr_valid;
 	systime last_ro_ch_time; /* this will be updated at the beginning and end of ro_ch */
 };
 #endif /* CONFIG_IOCTL_CFG80211 */

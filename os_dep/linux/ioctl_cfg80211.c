@@ -6362,6 +6362,19 @@ void rtw_cfg80211_rx_mframe(_adapter *adapter, union recv_frame *rframe, const c
 	ch = rframe->u.hdr.attrib.ch ? rframe->u.hdr.attrib.ch : sch;
 	freq = rtw_ch2freq(ch);
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0))
+	/* Honor the cfg80211 ROC transmitter filter (rx_addr). */
+	if (adapter->cfg80211_wdinfo.is_ro_ch &&
+	    adapter->cfg80211_wdinfo.remain_on_ch_rx_addr_valid &&
+	    _rtw_memcmp(get_addr2_ptr(frame),
+			adapter->cfg80211_wdinfo.remain_on_ch_rx_addr,
+			ETH_ALEN) == _FALSE) {
+		RTW_INFO("RTW_Rx: ROC filter drop "MAC_FMT"\n",
+			 MAC_ARG(get_addr2_ptr(frame)));
+		return;
+	}
+#endif
+
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)) || defined(COMPAT_KERNEL_RELEASE)
 	rtw_cfg80211_rx_mgmt(wdev, freq, 0, frame, frame_len, GFP_ATOMIC);
 #else
@@ -6647,6 +6660,8 @@ static s32 cfg80211_rtw_update_ft_ies(struct wiphy *wiphy,
 inline void rtw_cfg80211_set_is_roch(_adapter *adapter, bool val)
 {
 	adapter->cfg80211_wdinfo.is_ro_ch = val;
+	if (!val)
+		adapter->cfg80211_wdinfo.remain_on_ch_rx_addr_valid = _FALSE;
 	rtw_mi_update_iface_status(&(adapter->mlmepriv), 0);
 }
 
@@ -6730,6 +6745,13 @@ static s32 cfg80211_rtw_remain_on_channel(struct wiphy *wiphy,
 	pwdev_priv = adapter_wdev_data(padapter);
 	pwdinfo = &padapter->wdinfo;
 	pcfg80211_wdinfo = &padapter->cfg80211_wdinfo;
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(7, 2, 0))
+	if (rx_addr) {
+		_rtw_memcpy(pcfg80211_wdinfo->remain_on_ch_rx_addr, rx_addr, ETH_ALEN);
+		pcfg80211_wdinfo->remain_on_ch_rx_addr_valid = _TRUE;
+	} else
+		pcfg80211_wdinfo->remain_on_ch_rx_addr_valid = _FALSE;
+#endif
 #ifdef CONFIG_CONCURRENT_MODE
 	is_p2p_find = (duration < (pwdinfo->ext_listen_interval)) ? _TRUE : _FALSE;
 #endif
