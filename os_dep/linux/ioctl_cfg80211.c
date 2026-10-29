@@ -1185,9 +1185,15 @@ void rtw_cfg80211_indicate_disconnect(_adapter *padapter, u16 reason, u8 locally
 		RTW_INFO("pwdev->sme_state(b)=%d\n", pwdev->sme_state);
 
 		if (pwdev->sme_state == CFG80211_SME_CONNECTING) {
-			RTW_INFO(FUNC_ADPT_FMT" call cfg80211_connect_result\n", FUNC_ADPT_ARG(padapter));
-			rtw_cfg80211_connect_result(pwdev, NULL, NULL, 0, NULL, 0,
-				reason, GFP_ATOMIC);
+			const u8 *bssid = pwdev_priv->connect_req ? pwdev_priv->connect_req->bssid : NULL;
+			u16 status = (reason == WLAN_STATUS_SUCCESS) ? WLAN_STATUS_UNSPECIFIED_FAILURE : reason;
+
+			if (!bssid && !is_zero_mac_addr(padapter->mlmepriv.cur_network.network.MacAddress))
+				bssid = padapter->mlmepriv.cur_network.network.MacAddress;
+
+			RTW_INFO(FUNC_ADPT_FMT" call cfg80211_connect_result (status=%u)\n", FUNC_ADPT_ARG(padapter), status);
+			rtw_cfg80211_connect_result(pwdev, bssid, NULL, 0, NULL, 0,
+				status, GFP_ATOMIC);
 		} else if (pwdev->sme_state == CFG80211_SME_CONNECTED) {
 			RTW_INFO(FUNC_ADPT_FMT" call cfg80211_disconnected\n", FUNC_ADPT_ARG(padapter));
 			rtw_cfg80211_disconnected(pwdev, reason, NULL, 0, locally_generated, GFP_ATOMIC);
@@ -1196,9 +1202,15 @@ void rtw_cfg80211_indicate_disconnect(_adapter *padapter, u16 reason, u8 locally
 		RTW_INFO("pwdev->sme_state(a)=%d\n", pwdev->sme_state);
 		#else
 		if (pwdev_priv->connect_req) {
-			RTW_INFO(FUNC_ADPT_FMT" call cfg80211_connect_result\n", FUNC_ADPT_ARG(padapter));
-			rtw_cfg80211_connect_result(pwdev, NULL, NULL, 0, NULL, 0,
-				reason, GFP_ATOMIC);
+			const u8 *bssid = pwdev_priv->connect_req->bssid;
+			u16 status = (reason == WLAN_STATUS_SUCCESS) ? WLAN_STATUS_UNSPECIFIED_FAILURE : reason;
+
+			if (!bssid && !is_zero_mac_addr(padapter->mlmepriv.cur_network.network.MacAddress))
+				bssid = padapter->mlmepriv.cur_network.network.MacAddress;
+
+			RTW_INFO(FUNC_ADPT_FMT" call cfg80211_connect_result (status=%u)\n", FUNC_ADPT_ARG(padapter), status);
+			rtw_cfg80211_connect_result(pwdev, bssid, NULL, 0, NULL, 0,
+				status, GFP_ATOMIC);
 		} else {
 			RTW_INFO(FUNC_ADPT_FMT" call cfg80211_disconnected\n", FUNC_ADPT_ARG(padapter));
 			rtw_cfg80211_disconnected(pwdev, reason, NULL, 0, locally_generated, GFP_ATOMIC);

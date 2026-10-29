@@ -367,7 +367,21 @@ void rtw_cfg80211_deinit_rfkill(struct wiphy *wiphy);
 #define rtw_cfg80211_remain_on_channel_expired(wdev, cookie, chan, chan_type, gfp) cfg80211_remain_on_channel_expired(wdev, cookie, chan, gfp)
 #endif
 
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33))
+static inline void rtw_cfg80211_connect_result(struct wireless_dev *wdev,
+	const u8 *bssid, const u8 *req_ie, size_t req_ie_len,
+	const u8 *resp_ie, size_t resp_ie_len, u16 status, gfp_t gfp)
+{
+	/* cfg80211 dereferences bssid unconditionally when status == WLAN_STATUS_SUCCESS.
+	 * Never report success without a valid BSSID pointer. */
+	if (status == WLAN_STATUS_SUCCESS && !bssid)
+		status = WLAN_STATUS_UNSPECIFIED_FAILURE;
+
+	cfg80211_connect_result(wdev_to_ndev(wdev), bssid, req_ie, req_ie_len, resp_ie, resp_ie_len, status, gfp);
+}
+#else
 #define rtw_cfg80211_connect_result(wdev, bssid, req_ie, req_ie_len, resp_ie, resp_ie_len, status, gfp) cfg80211_connect_result(wdev_to_ndev(wdev), bssid, req_ie, req_ie_len, resp_ie, resp_ie_len, status, gfp)
+#endif
 
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0))
 #define rtw_cfg80211_disconnected(wdev, reason, ie, ie_len, locally_generated, gfp) cfg80211_disconnected(wdev_to_ndev(wdev), reason, ie, ie_len, gfp)
