@@ -4414,7 +4414,10 @@ int recv_func(_adapter *padapter, union recv_frame *rframe)
 	struct security_priv *psecuritypriv = &padapter->securitypriv;
 	struct mlme_priv *mlmepriv = &padapter->mlmepriv;
 
-	if (check_fwstate(mlmepriv, WIFI_MONITOR_STATE)) {
+	struct rtw_wdev_priv *pwdev_priv = adapter_wdev_data(padapter);
+
+	if (check_fwstate(mlmepriv, WIFI_MONITOR_STATE) ||
+	    (pwdev_priv && pwdev_priv->pmon_ndev && netif_running(pwdev_priv->pmon_ndev))) {
 		/* monitor mode */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24))
 		recv_frame_monitor(padapter, rframe);
@@ -4878,7 +4881,9 @@ void rtw_reset_continual_no_rx_packet(struct sta_info *sta, int tid_index)
 
 u8 adapter_allow_bmc_data_rx(_adapter *adapter)
 {
-	if (check_fwstate(&adapter->mlmepriv, WIFI_MONITOR_STATE | WIFI_MP_STATE) == _TRUE)
+	struct rtw_wdev_priv *pwdev_priv = adapter_wdev_data(adapter);
+	if (check_fwstate(&adapter->mlmepriv, WIFI_MONITOR_STATE | WIFI_MP_STATE) == _TRUE ||
+	    (pwdev_priv && pwdev_priv->pmon_ndev && netif_running(pwdev_priv->pmon_ndev)))
 		return 1;
 
 	if (MLME_IS_AP(adapter))

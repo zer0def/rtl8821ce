@@ -79,18 +79,13 @@ u32 rtl8821c_power_on(PADAPTER adapter)
 
 	err = rtw_halmac_poweron(d);
 
-	#ifdef CONFIG_POWER_STATE_UNEXPECTED_HDL
 	if ((-2) == err) {
-		RTW_ERR("%s:Power ON Fail, Try to power on again !!\n", __FUNCTION__);
-		rtw_halmac_poweroff(d);
-		rtw_msleep_os(2);
-		err = rtw_halmac_poweron(d);
+		RTW_INFO("%s: Device remains in ON state, proceeding\n", __FUNCTION__);
+		err = 0;
 	}
-	#endif
 
 	if (err) {
-		RTW_ERR("%s: Power ON Fail!!\n", __FUNCTION__);
-		rtw_warn_on(1);
+		RTW_ERR("%s: Power ON Fail!! (err=%d)\n", __FUNCTION__, err);
 		ret = _FAIL;
 		goto out;
 	}
@@ -118,9 +113,7 @@ void rtl8821c_power_off(PADAPTER adapter)
 
 	err = rtw_halmac_poweroff(d);
 	if (err) {
-		RTW_ERR("%s: Power OFF Fail!!\n", __FUNCTION__);
-		rtw_warn_on(1);
-		goto out;
+		RTW_WARN("%s: Power OFF Fail (err=%d), resetting state\n", __FUNCTION__, err);
 	}
 
 	bMacPwrCtrlOn = _FALSE;

@@ -44,16 +44,27 @@ halmac_mac_power_switch_8821c_pcie(
 	interface_mask = HALMAC_PWR_INTF_PCI_MSK;
 
 	value8 = HALMAC_REG_READ_8(pHalmac_adapter, REG_CR);
-	if (0xEA == value8)
+	if (0xEA == value8) {
 		pHalmac_adapter->halmac_state.mac_power = HALMAC_MAC_POWER_OFF;
-	else
-		pHalmac_adapter->halmac_state.mac_power = HALMAC_MAC_POWER_ON;
+		pHalmac_adapter->halmac_state.ps_state = HALMAC_PS_STATE_UNDEFINE;
+	}
 
 	/* Check if power switch is needed */
-	if (halmac_power == HALMAC_MAC_POWER_ON && pHalmac_adapter->halmac_state.mac_power == HALMAC_MAC_POWER_ON) {
-		PLATFORM_MSG_PRINT(pDriver_adapter, HALMAC_MSG_PWR, HALMAC_DBG_WARN, "halmac_mac_power_switch power state unchange!\n");
-		return HALMAC_RET_PWR_UNCHANGE;
+	if (HALMAC_MAC_POWER_ON == halmac_power) {
+		if (HALMAC_MAC_POWER_ON == pHalmac_adapter->halmac_state.mac_power &&
+		    HALMAC_PS_STATE_ACT == pHalmac_adapter->halmac_state.ps_state) {
+			PLATFORM_MSG_PRINT(pDriver_adapter, HALMAC_MSG_PWR, HALMAC_DBG_WARN, "halmac_mac_power_switch power state unchange (already ON and ACT)!\n");
+			return HALMAC_RET_PWR_UNCHANGE;
+		}
 	} else {
+		if (HALMAC_MAC_POWER_OFF == pHalmac_adapter->halmac_state.mac_power &&
+		    HALMAC_PS_STATE_ACT != pHalmac_adapter->halmac_state.ps_state) {
+			PLATFORM_MSG_PRINT(pDriver_adapter, HALMAC_MSG_PWR, HALMAC_DBG_WARN, "halmac_mac_power_switch power state unchange (already OFF)!\n");
+			return HALMAC_RET_PWR_UNCHANGE;
+		}
+	}
+
+	if (1) {
 		if (HALMAC_MAC_POWER_OFF == halmac_power) {
 			if (HALMAC_RET_SUCCESS != halmac_pwr_seq_parser_88xx(pHalmac_adapter, HALMAC_PWR_CUT_ALL_MSK, HALMAC_PWR_FAB_TSMC_MSK,
 				    interface_mask, halmac_8821c_card_disable_flow)) {

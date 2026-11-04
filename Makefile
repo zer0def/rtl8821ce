@@ -26,7 +26,11 @@ ifeq (,$(srctree))
     export TopDIR ?= $(shell pwd)
 else
     # dkms processing or in tree compilation
-    export TopDIR ?= $(srctree)/$(src)
+    ifneq ($(wildcard $(src)/rtl8821c.mk),)
+        export TopDIR ?= $(src)
+    else
+        export TopDIR ?= $(srctree)/$(src)
+    endif
 endif
 
 ccflags-y += -I$(TopDIR)/include
@@ -75,11 +79,11 @@ CONFIG_RTW_CHPLAN = 0xFF
 CONFIG_RTW_ADAPTIVITY_EN = disable
 CONFIG_RTW_ADAPTIVITY_MODE = normal
 CONFIG_SIGNAL_SCALE_MAPPING = n
-CONFIG_80211W = n
+CONFIG_80211W = y
 CONFIG_REDUCE_TX_CPU_LOADING = n
 CONFIG_BR_EXT = y
 CONFIG_TDLS = n
-CONFIG_WIFI_MONITOR = n
+CONFIG_WIFI_MONITOR = y
 CONFIG_MCC_MODE = n
 CONFIG_APPEND_VENDOR_IE_ENABLE = n
 CONFIG_RTW_NAPI = y

@@ -206,7 +206,8 @@ static BOOLEAN rtl8821ce_InterruptRecognized(PADAPTER Adapter)
 	rtw_write32(Adapter, REG_HISR3, pHalData->IntArray[3]);
 
 	if (((pHalData->IntArray[0]) & pHalData->IntrMask[0]) != 0 ||
-	    ((pHalData->IntArray[1]) & pHalData->IntrMask[1]) != 0)
+	    ((pHalData->IntArray[1]) & pHalData->IntrMask[1]) != 0 ||
+	    ((pHalData->IntArray[3]) & pHalData->IntrMask[3]) != 0)
 		bRecognized = _TRUE;
 
 	/* restore IMR */
@@ -252,6 +253,10 @@ static VOID rtl8821ce_clear_interrupt(PADAPTER Adapter)
 	u32b = rtw_read32(Adapter, REG_HISR1_8821C);
 	rtw_write32(Adapter, REG_HISR1_8821C, u32b);
 	pHalData->IntArray[1] = 0;
+
+	u32b = rtw_read32(Adapter, REG_HISR3);
+	rtw_write32(Adapter, REG_HISR3, u32b);
+	pHalData->IntArray[3] = 0;
 }
 
 static VOID rtl8821ce_disable_interrupt(PADAPTER Adapter)
@@ -409,6 +414,10 @@ static void rtl8821ce_tx_handler(PADAPTER Adapter, u32 events[], u32 handled[])
 		rtl8821ce_tx_isr(Adapter, VO_QUEUE_INX);
 		handled[0] |= BIT_VODOK_MSK;
 	}
+
+	/* Also reap TXCMD queue if any H2C frames are pending completion */
+	if (Adapter->xmitpriv.tx_ring[TXCMD_QUEUE_INX].qlen > 0)
+		rtl8821ce_tx_isr(Adapter, TXCMD_QUEUE_INX);
 }
 
 static void rtl8821ce_cmd_handler(PADAPTER Adapter, u32 handled[])
@@ -418,6 +427,8 @@ static void rtl8821ce_cmd_handler(PADAPTER Adapter, u32 handled[])
 	if (pHalData->IntArray[3] & BIT_SETH2CDOK_MASK) {
 		rtl8821ce_tx_isr(Adapter, TXCMD_QUEUE_INX);
 		handled[3] |= BIT_SETH2CDOK_MASK;
+	} else if (Adapter->xmitpriv.tx_ring[TXCMD_QUEUE_INX].qlen > 0) {
+		rtl8821ce_tx_isr(Adapter, TXCMD_QUEUE_INX);
 	}
 }
 

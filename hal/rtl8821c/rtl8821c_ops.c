@@ -527,9 +527,9 @@ u8 rtl8821c_read_efuse(PADAPTER adapter)
 	rtw_btcoex_set_ant_info(adapter);
 
 #ifdef CONFIG_RTW_MAC_HIDDEN_RPT
-	if (hal_read_mac_hidden_rpt(adapter) != _SUCCESS)
-		goto exit;
-	{
+	if (hal_read_mac_hidden_rpt(adapter) != _SUCCESS) {
+		RTW_WARN("%s: hal_read_mac_hidden_rpt failed, continuing\n", __FUNCTION__);
+	} else {
 		struct hal_spec_t *hal_spec = GET_HAL_SPEC(adapter);
 
 		if (hal_spec->hci_type <= 3 && hal_spec->hci_type >= 1) {
@@ -1584,6 +1584,7 @@ static void hw_var_set_bcn_valid(PADAPTER adapter)
 	val8 = rtw_read8(adapter, REG_FIFOPAGE_CTRL_2_8821C + 1);
 	val8 = val8 | BIT(7);
 	rtw_write8(adapter, REG_FIFOPAGE_CTRL_2_8821C + 1, val8);
+	rtw_read8(adapter, REG_FIFOPAGE_CTRL_2_8821C + 1); /* flush PCIe write */
 }
 
 static void hw_var_set_cam_empty_entry(PADAPTER adapter, u8 ucIndex)

@@ -238,14 +238,8 @@
 	#ifndef CONFIG_FW_C2H_PKT
 		#define CONFIG_FW_C2H_PKT
 	#endif
-	#ifdef CONFIG_NO_FW
-		#ifdef CONFIG_RTW_MAC_HIDDEN_RPT
-			#undef CONFIG_RTW_MAC_HIDDEN_RPT
-		#endif
-	#else
-		#ifndef CONFIG_RTW_MAC_HIDDEN_RPT
-			#define CONFIG_RTW_MAC_HIDDEN_RPT
-		#endif
+	#ifdef CONFIG_RTW_MAC_HIDDEN_RPT
+		#undef CONFIG_RTW_MAC_HIDDEN_RPT
 	#endif
 	#define LOAD_FW_HEADER_FROM_DRIVER
 	#define CONFIG_PHY_CAPABILITY_QUERY

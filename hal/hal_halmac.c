@@ -30,6 +30,10 @@
 
 #define RTW_HALMAC_DLFW_MEM_NO_STOP_TX
 
+#ifdef CONFIG_PCI_HCI
+extern u32 InitMAC_TRXBD_8821CE(PADAPTER Adapter);
+#endif
+
 /*
  * Driver API for HALMAC operations
  */
@@ -2543,36 +2547,10 @@ int rtw_halmac_poweron(struct dvobj_priv *d)
 
 	status = _power_switch(halmac, api, HALMAC_MAC_POWER_ON);
 	if (HALMAC_RET_PWR_UNCHANGE == status) {
-
-#if defined(CONFIG_PCI_HCI) && defined(CONFIG_RTL8822B)
-		addr = 0x3F3;
-		v8 = rtw_read8(a, addr);
-		RTW_PRINT("%s: 0x%X = 0x%02x\n", __FUNCTION__, addr, v8);
-		
-		/* are we in pcie debug mode? */
-		if (!(v8 & BIT(2))) {
-			RTW_PRINT("%s: Enable pcie debug mode\n", __FUNCTION__);
-			v8 |= BIT(2);
-			v8 = rtw_write8(a, addr, v8);
-		} else if (v8 & BIT(0)) {
-			/* DMA stuck */
-			addr = 0x1350;
-			v8 = rtw_read8(a, addr);
-			RTW_PRINT("%s: 0x%X = 0x%02x\n", __FUNCTION__, addr, v8);
-			RTW_PRINT("%s: recover DMA stuck\n", __FUNCTION__);
-			v8 |= BIT(6);
-			v8 = rtw_write8(a, addr, v8);
-			RTW_PRINT("%s: 0x%X = 0x%02x\n", __FUNCTION__, addr, v8);
-		}
-#endif
-		/*
-		 * Work around for warm reboot but device not power off,
-		 * but it would also fall into this case when auto power on is enabled.
-		 */
 		_power_switch(halmac, api, HALMAC_MAC_POWER_OFF);
 		status = _power_switch(halmac, api, HALMAC_MAC_POWER_ON);
-		RTW_WARN("%s: Power state abnormal, try to recover...%s\n",
-			 __FUNCTION__, (HALMAC_RET_SUCCESS == status)?"OK":"FAIL!");
+		RTW_WARN("%s: Power state abnormal, power cycled...%s\n",
+			 __FUNCTION__, (HALMAC_RET_SUCCESS == status) ? "OK" : "FAIL!");
 	}
 	if (HALMAC_RET_SUCCESS != status) {
 		if (HALMAC_RET_PWR_UNCHANGE == status)
@@ -3231,28 +3209,39 @@ resume_tx:
 
 		/* 7. Change reserved page size */
 		err = _cfg_drv_rsvd_pg_num(d);
-		if (err)
-			return -1;
+		if (err) {
+			err = -1;
+			goto exit;
+		}
 
 		/* 8. Init TRX Configuration */
 		mode = _choose_trx_mode(d);
 		status = api->halmac_init_trx_cfg(mac, mode);
-		if (HALMAC_RET_SUCCESS != status)
-			return -1;
+		if (HALMAC_RET_SUCCESS != status) {
+			err = -1;
+			goto exit;
+		}
 		_init_trx_cfg_drv(d);
 
 		/* 9. Config RX Aggregation */
 		err = rtw_halmac_rx_agg_switch(d, _TRUE);
-		if (err)
-			return -1;
+		if (err) {
+			err = -1;
+			goto exit;
+		}
 
 		/* 10. Send General Info */
 		err = _send_general_info(d);
-		if (err)
-			return -1;
+		if (err) {
+			err = -1;
+			goto exit;
+		}
 	}
 
 exit:
+#ifdef CONFIG_PCI_HCI
+	InitMAC_TRXBD_8821CE(dvobj_get_primary_adapter(d));
+#endif
 	return err;
 }
 
@@ -3382,57 +3371,84 @@ static int _halmac_init_hal(struct dvobj_priv *d, u8 *fw, u32 fwsize)
 	/* halmac_mac_power_switch(on) */
 	/* halmac_Init_system_cfg */
 	ok = rtw_hal_power_on(adapter);
-	if (_FAIL == ok)
+	if (_FAIL == ok) {
+		pr_err("8821ce: _halmac_init_hal: rtw_hal_power_on failed\n");
 		goto out;
+	}
+
+#ifdef CONFIG_PCI_HCI
+	InitMAC_TRXBD_8821CE(adapter);
+#endif
 
 	/* StatePowerOn */
 
 	/* DownloadFW */
 	if (fw && fwsize) {
 		err = download_fw(d, fw, fwsize, 0);
-		if (err)
-			goto out;
-		fw_ok = _TRUE;
+		if (err) {
+			pr_warn("8821ce: _halmac_init_hal: download_fw failed (err=%d), proceeding without FW\n", err);
+			err = 0;
+		} else {
+			fw_ok = _TRUE;
+		}
 	}
 
 	/* InitMACFlow */
 	err = init_mac_flow(d);
-	if (err)
+	if (err) {
+		pr_err("8821ce: _halmac_init_hal: init_mac_flow failed (err=%d)\n", err);
 		goto out;
+	}
+
+#ifdef CONFIG_PCI_HCI
+	InitMAC_TRXBD_8821CE(adapter);
+#endif
 
 	/* Driver insert flow: Enable TR/RX */
 	err = _drv_enable_trx(d);
-	if (err)
+	if (err) {
+		pr_err("8821ce: _halmac_init_hal: _drv_enable_trx failed (err=%d)\n", err);
 		goto out;
+	}
 
 	/* halmac_send_general_info */
 	if (_TRUE == fw_ok) {
 		err = _send_general_info(d);
-		if (err)
+		if (err) {
+			pr_err("8821ce: _halmac_init_hal: _send_general_info failed (err=%d)\n", err);
 			goto out;
+		}
 	}
 
 	/* Init Phy parameter-MAC */
 	ok = rtw_hal_init_mac_register(adapter);
-	if (_FALSE == ok)
+	if (_FALSE == ok) {
+		pr_err("8821ce: _halmac_init_hal: rtw_hal_init_mac_register failed\n");
 		goto out;
+	}
 
 	/* StateMacInitialized */
 
 	/* halmac_cfg_drv_info */
 	err = rtw_halmac_config_rx_info(d, HALMAC_DRV_INFO_PHY_STATUS);
-	if (err)
+	if (err) {
+		pr_err("8821ce: _halmac_init_hal: rtw_halmac_config_rx_info failed (err=%d)\n", err);
 		goto out;
+	}
 
 	/* halmac_set_hw_value(HALMAC_HW_EN_BB_RF) */
 	/* Init BB, RF */
 	ok = rtw_hal_init_phy(adapter);
-	if (_FALSE == ok)
+	if (_FALSE == ok) {
+		pr_err("8821ce: _halmac_init_hal: rtw_hal_init_phy failed\n");
 		goto out;
+	}
 
 	status = api->halmac_init_interface_cfg(halmac);
-	if (status != HALMAC_RET_SUCCESS)
+	if (status != HALMAC_RET_SUCCESS) {
+		pr_err("8821ce: _halmac_init_hal: halmac_init_interface_cfg failed (status=%d)\n", status);
 		goto out;
+	}
 
 	/* SKIP: halmac_verify_platform_api */
 	/* SKIP: halmac_h2c_lb */

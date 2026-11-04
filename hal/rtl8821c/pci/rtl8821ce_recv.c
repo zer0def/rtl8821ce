@@ -84,16 +84,20 @@ static u32 rtl8821ce_wait_rxrdy(_adapter *padapter,
 	}
 #else
 	while (total_len == 0) {
-		read_cnt++;
-
+		dma_rmb();
 		total_len = (u2Byte) GET_RX_BD_TOTALRXPKTSIZE(rx_bd);
 		first_seg = (u1Byte) GET_RX_BD_FS(rx_bd);
 		last_seg = (u1Byte) GET_RX_BD_LS(rx_bd);
 
-		if (read_cnt > 20) {
+		if (total_len != 0)
+			break;
+
+		read_cnt++;
+		if (read_cnt > 100) {
 			status = _FAIL;
 			break;
 		}
+		udelay(1);
 	}
 #endif
 
@@ -195,9 +199,11 @@ static void rtl8821ce_rx_mpdu(_adapter *padapter)
 		 */
 
 		if (rtl8821ce_wait_rxrdy(padapter, rx_bd, rx_q_idx) !=
-		    _SUCCESS)
+		    _SUCCESS) {
 			buf_desc_debug("RX:%s(%d) packet not ready\n",
 				       __func__, __LINE__);
+			break;
+		}
 
 		{
 			precvframe = rtw_alloc_recvframe(pfree_recv_queue);

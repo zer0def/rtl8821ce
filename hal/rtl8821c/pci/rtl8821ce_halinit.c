@@ -44,6 +44,8 @@ u32 InitMAC_TRXBD_8821CE(PADAPTER Adapter)
 #ifdef CONFIG_64BIT_DMA
 	rtw_write32(Adapter, REG_H2CQ_TXBD_DESA_8821C + 4,
 		    ((u64)pxmitpriv->tx_ring[TXCMD_QUEUE_INX].dma) >> 32);
+#else
+	rtw_write32(Adapter, REG_H2CQ_TXBD_DESA_8821C + 4, 0);
 #endif
 	/*
 	 * Set TX/RX BD (buffer descriptor) physical address(from OS API).
@@ -98,27 +100,17 @@ u32 InitMAC_TRXBD_8821CE(PADAPTER Adapter)
 		    ((u64)pxmitpriv->tx_ring[HIGH_QUEUE_INX].dma) >> 32);
 	rtw_write32(Adapter, REG_RXQ_RXBD_DESA_8821C + 4,
 		    ((u64)precvpriv->rx_ring[RX_MPDU_QUEUE].dma) >> 32);
-
-#if 0
-	/* 2009/10/28 MH If RX descriptor address is not equal to zero.
-	* We will enable DMA 64 bit functuion.
-	* Note: We never saw thd consition which the descripto address are
-	*	divided into 4G down and 4G upper separate area.
-	*/
-	if (((u64)precvpriv->rx_ring[RX_MPDU_QUEUE].dma) >> 32 != 0) {
-		RTW_INFO("Enable DMA64 bit\n");
-
-		/* Check if other descriptor address is zero and
-		* abnormally be in 4G lower area.
-		*/
-		if (((u64)pxmitpriv->tx_ring[MGT_QUEUE_INX].dma) >> 32)
-			RTW_INFO("MGNT_QUEUE HA=0\n");
-
-	} else
-		RTW_INFO("Enable DMA32 bit\n");
-#endif
 	if (adapter_to_dvobj(Adapter)->bdma64)	
 		PlatformEnableDMA64(Adapter);
+#else
+	rtw_write32(Adapter, REG_BCNQ_TXBD_DESA_8821C + 4, 0);
+	rtw_write32(Adapter, REG_MGQ_TXBD_DESA_8821C + 4, 0);
+	rtw_write32(Adapter, REG_VOQ_TXBD_DESA_8821C + 4, 0);
+	rtw_write32(Adapter, REG_VIQ_TXBD_DESA_8821C + 4, 0);
+	rtw_write32(Adapter, REG_BEQ_TXBD_DESA_8821C + 4, 0);
+	rtw_write32(Adapter, REG_BKQ_TXBD_DESA_8821C + 4, 0);
+	rtw_write32(Adapter, REG_HI0Q_TXBD_DESA_8821C + 4, 0);
+	rtw_write32(Adapter, REG_RXQ_RXBD_DESA_8821C + 4, 0);
 #endif
 
 	/* pci buffer descriptor mode: Reset the Read/Write point to 0 */

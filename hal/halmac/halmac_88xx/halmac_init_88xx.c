@@ -570,8 +570,10 @@ init_system_cfg_88xx(struct halmac_adapter *adapter)
 		status = api->halmac_set_hw_value(adapter,
 						  HALMAC_HW_PCIE_REF_AUTOK,
 						  &hwval);
-		if (status != HALMAC_RET_SUCCESS)
-			return status;
+		if (status != HALMAC_RET_SUCCESS) {
+			PLTFM_MSG_WARN("[WARN]PCIE_REF_AUTOK non-fatal (status=%d), proceeding\n", status);
+			status = HALMAC_RET_SUCCESS;
+		}
 	}
 
 	value32 = HALMAC_REG_R32(REG_CPU_DMEM_CON) | BIT_WL_PLATFORM_RST;

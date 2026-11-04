@@ -139,17 +139,31 @@ static u8 pci_write_port_not_xmitframe(void *d,  u32 size, u8 *pBuf, u8 qsel)
 	/* Need Comment */
 	wmb();
 
-	if (qsel == HALMAC_TXDESC_QSEL_H2C_CMD)
+	if (qsel == HALMAC_TXDESC_QSEL_H2C_CMD) {
+		u32 poll = 0;
 		rtw_write16(padapter, REG_H2CQ_TXBD_IDX, 1);
-	else {
+		while (poll++ < 5000) {
+			u32 idx = rtw_read32(padapter, REG_H2CQ_TXBD_IDX);
+			u16 hw_rp = (u16)((idx >> 16) & 0x7ff);
+			if (hw_rp >= 1)
+				break;
+			udelay(10);
+		}
+	} else {
+		u32 poll = 0;
 		/* fill_txbd_own*/
 		SET_TX_BD_OWN(txbd, 1);
+		wmb();
 		/* kick start */
 		rtw_write8(padapter, REG_RX_RXBD_NUM + 1,
 			rtw_read8(padapter, REG_RX_RXBD_NUM + 1) | BIT(4));
-	}
+		rtw_read8(padapter, REG_RX_RXBD_NUM + 1);
 
-	udelay(100);
+		while (GET_TX_BD_OWN(txbd) && poll++ < 10000) {
+			udelay(10);
+			rmb();
+		}
+	}
 
 	#if (LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0))
 	pci_free_consistent(pdev, sizeof(struct tx_buf_desc), txbd, txbd_dma);
@@ -164,6 +178,32 @@ static u8 pci_write_port_not_xmitframe(void *d,  u32 size, u8 *pBuf, u8 qsel)
 	dma_unmap_single(&pdev->dev, mapping,
 			size + TX_WIFI_INFO_SIZE,	 DMA_FROM_DEVICE);
 	#endif
+
+	/* Restore hardware ring registers back to the real driver descriptor rings */
+	if (qsel == HALMAC_TXDESC_QSEL_H2C_CMD) {
+		struct xmit_priv *pxmitpriv = &padapter->xmitpriv;
+		rtw_write32(padapter, REG_H2CQ_TXBD_DESA_8821C,
+			    (u64)pxmitpriv->tx_ring[TXCMD_QUEUE_INX].dma & DMA_BIT_MASK(32));
+#ifdef CONFIG_64BIT_DMA
+		rtw_write32(padapter, REG_H2CQ_TXBD_DESA_8821C + 4,
+			    ((u64)pxmitpriv->tx_ring[TXCMD_QUEUE_INX].dma) >> 32);
+#else
+		rtw_write32(padapter, REG_H2CQ_TXBD_DESA_8821C + 4, 0);
+#endif
+		rtw_write32(padapter, REG_H2CQ_TXBD_NUM_8821C,
+			    TX_BD_NUM_8821CE_CMD | ((RTL8821CE_SEG_NUM << 12) & 0x3000));
+		rtw_write16(padapter, REG_H2CQ_TXBD_IDX, 0);
+	} else {
+		struct xmit_priv *pxmitpriv = &padapter->xmitpriv;
+		rtw_write32(padapter, REG_BCNQ_TXBD_DESA_8821C,
+			    (u64)pxmitpriv->tx_ring[BCN_QUEUE_INX].dma & DMA_BIT_MASK(32));
+#ifdef CONFIG_64BIT_DMA
+		rtw_write32(padapter, REG_BCNQ_TXBD_DESA_8821C + 4,
+			    ((u64)pxmitpriv->tx_ring[BCN_QUEUE_INX].dma) >> 32);
+#else
+		rtw_write32(padapter, REG_BCNQ_TXBD_DESA_8821C + 4, 0);
+#endif
+	}
 
 	return ret;
 
@@ -235,7 +275,7 @@ static u8 pci_write_data_rsvd_page_xmitframe(void *d, u8 *pBuf, u32 size)
 	struct rtw_tx_ring *ring = &pxmitpriv->tx_ring[BCN_QUEUE_INX];
 	struct pci_dev *pdev = pobj->ppcidev;
 	struct xmit_buf       	*pxmitbuf = NULL;
-	u8 DLBcnCount = 0;
+	u32 DLBcnCount = 0;
 	u32 poll = 0;
 	u8 *txbd;
 	bool bcn_valid = _FALSE;
@@ -274,19 +314,18 @@ static u8 pci_write_data_rsvd_page_xmitframe(void *d, u8 *pBuf, u32 size)
 	dump_mgntframe(padapter, pcmdframe);
 
 	DLBcnCount = 0;
-	poll = 0;
 	do {
+		udelay(20);
+		rtw_hal_get_hwreg(padapter, HW_VAR_BCN_VALID, (u8 *)(&bcn_valid));
 		DLBcnCount++;
-		do {
-			rtw_yield_os();
-			/* does rsvd page download OK. */
-			rtw_hal_get_hwreg(padapter,
-				HW_VAR_BCN_VALID,(u8 *)(&bcn_valid));
-			poll++;
-		} while (!bcn_valid && (poll % 10) != 0 && !RTW_CANNOT_RUN(padapter));
-	} while (!bcn_valid && DLBcnCount <= 100 && !RTW_CANNOT_RUN(padapter));
+	} while (!bcn_valid && DLBcnCount < 1000 && !RTW_CANNOT_RUN(padapter));
 
 	txbd = (u8 *)(&ring->buf_desc[0]);
+
+	while (GET_TX_BD_OWN(txbd) && poll++ < 10000) {
+		udelay(10);
+		rmb();
+	}
 
 	mapping = GET_TX_BD_PHYSICAL_ADDR0_LOW(txbd);
 	#ifdef CONFIG_64BIT_DMA
@@ -300,6 +339,12 @@ static u8 pci_write_data_rsvd_page_xmitframe(void *d, u8 *pBuf, u32 size)
 	#else
 	dma_unmap_single(&pdev->dev, mapping,	pxmitbuf->len, DMA_TO_DEVICE);
 	#endif
+
+	if (!bcn_valid) {
+		RTW_ERR("%s: bcn_valid polling timeout! (DLBcnCount=%u, txbd_dw0=0x%08x)\n",
+			__func__, DLBcnCount, *((u32 *)txbd));
+		return _FALSE;
+	}
 
 	return _TRUE;
 }
@@ -322,7 +367,24 @@ static u8 pci_write_data_h2c_normal(void *d, u8 *pBuf, u32 size)
 		return _FALSE;
 	}
 
+	if (pxmitpriv->tx_ring[TXCMD_QUEUE_INX].qlen > 0 || pxmitpriv->free_xmit_extbuf_cnt < 8) {
+		_irqL irqL;
+		_enter_critical(&pobj->irq_th_lock, &irqL);
+		rtl8821ce_tx_isr(padapter, TXCMD_QUEUE_INX);
+		rtl8821ce_tx_isr(padapter, MGT_QUEUE_INX);
+		_exit_critical(&pobj->irq_th_lock, &irqL);
+	}
+
 	pcmdframe = alloc_mgtxmitframe(pxmitpriv);
+
+	if (pcmdframe == NULL) {
+		_irqL irqL;
+		_enter_critical(&pobj->irq_th_lock, &irqL);
+		rtl8821ce_tx_isr(padapter, TXCMD_QUEUE_INX);
+		rtl8821ce_tx_isr(padapter, MGT_QUEUE_INX);
+		_exit_critical(&pobj->irq_th_lock, &irqL);
+		pcmdframe = alloc_mgtxmitframe(pxmitpriv);
+	}
 
 	if (pcmdframe == NULL) {
 		RTW_INFO("%s: alloc ReservedPagePacket fail!\n", __func__);

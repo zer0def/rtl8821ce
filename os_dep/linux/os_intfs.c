@@ -3444,6 +3444,7 @@ int _netdev_open(struct net_device *pnetdev)
 
 		status = rtw_hal_init(padapter);
 		if (status == _FAIL) {
+			pr_err("8821ce: _netdev_open: rtw_hal_init failed!\n");
 			goto netdev_open_error;
 		}
 #if 0/*#ifdef CONFIG_MI_WITH_MBSSID_CAM*/
@@ -3608,6 +3609,7 @@ int  ips_netdrv_open(_adapter *padapter)
 	if (!rtw_is_hw_init_completed(padapter)) {
 		status = rtw_hal_init(padapter);
 		if (status == _FAIL) {
+			pr_err("8821ce: _netdev_open: rtw_hal_init failed!\n");
 			goto netdev_open_error;
 		}
 		rtw_mi_hal_iface_init(padapter);

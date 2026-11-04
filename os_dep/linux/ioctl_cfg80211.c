@@ -1586,8 +1586,10 @@ static int rtw_cfg80211_set_encryption(struct net_device *dev, struct ieee_param
 							, FUNC_ADPT_ARG(padapter), param->u.crypt.alg, param->u.crypt.idx, param->u.crypt.key_len);
 						_rtw_memcpy(padapter->securitypriv.dot118021XGrpKey[param->u.crypt.idx].skey,  param->u.crypt.key,
 							(param->u.crypt.key_len > 16 ? 16 : param->u.crypt.key_len));
-						_rtw_memcpy(padapter->securitypriv.dot118021XGrptxmickey[param->u.crypt.idx].skey, &(param->u.crypt.key[16]), 8);
-						_rtw_memcpy(padapter->securitypriv.dot118021XGrprxmickey[param->u.crypt.idx].skey, &(param->u.crypt.key[24]), 8);
+						if (param->u.crypt.key_len >= 32) {
+							_rtw_memcpy(padapter->securitypriv.dot118021XGrptxmickey[param->u.crypt.idx].skey, &(param->u.crypt.key[16]), 8);
+							_rtw_memcpy(padapter->securitypriv.dot118021XGrprxmickey[param->u.crypt.idx].skey, &(param->u.crypt.key[24]), 8);
+						}
 						padapter->securitypriv.binstallGrpkey = _TRUE;
 						if (param->u.crypt.idx < 4)
 							_rtw_memcpy(padapter->securitypriv.iv_seq[param->u.crypt.idx], param->u.crypt.seq, 8);
@@ -2475,6 +2477,7 @@ static int cfg80211_rtw_change_iface(struct wiphy *wiphy,
 		ndev->type = ARPHRD_IEEE80211; /* IEEE 802.11 : 801 */
 #endif
 		ndev->type = ARPHRD_IEEE80211_RADIOTAP; /* IEEE 802.11 + radiotap header : 803 */
+		rtw_ps_deny(padapter, PS_DENY_MONITOR_MODE);
 		break;
 	default:
 		ret = -EOPNOTSUPP;
@@ -2490,6 +2493,9 @@ static int cfg80211_rtw_change_iface(struct wiphy *wiphy,
 	}
 
 	rtw_setopmode_cmd(padapter, networkType, RTW_CMDF_WAIT_ACK);
+
+	if (old_type == NL80211_IFTYPE_MONITOR && type != NL80211_IFTYPE_MONITOR)
+		rtw_ps_deny_cancel(padapter, PS_DENY_MONITOR_MODE);
 
 exit:
 
@@ -4397,8 +4403,15 @@ void rtw_cfg80211_indicate_sta_disassoc(_adapter *padapter, const u8 *da, unsign
 static int rtw_cfg80211_monitor_if_open(struct net_device *ndev)
 {
 	int ret = 0;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
 
 	RTW_INFO("%s\n", __func__);
+	netif_carrier_on(ndev);
+	netif_start_queue(ndev);
+	if (padapter) {
+		set_fwstate(&padapter->mlmepriv, WIFI_MONITOR_STATE);
+		rtw_ps_deny(padapter, PS_DENY_MONITOR_MODE);
+	}
 
 	return ret;
 }
@@ -4406,8 +4419,15 @@ static int rtw_cfg80211_monitor_if_open(struct net_device *ndev)
 static int rtw_cfg80211_monitor_if_close(struct net_device *ndev)
 {
 	int ret = 0;
+	_adapter *padapter = (_adapter *)rtw_netdev_priv(ndev);
 
 	RTW_INFO("%s\n", __func__);
+	netif_stop_queue(ndev);
+	netif_carrier_off(ndev);
+	if (padapter) {
+		_clr_fwstate_(&padapter->mlmepriv, WIFI_MONITOR_STATE);
+		rtw_ps_deny_cancel(padapter, PS_DENY_MONITOR_MODE);
+	}
 
 	return ret;
 }
@@ -4453,12 +4473,7 @@ static int rtw_cfg80211_monitor_if_xmit_entry(struct sk_buff *skb, struct net_de
 	if (unlikely(skb->len < rtap_len))
 		goto fail;
 
-	if (rtap_len != 14) {
-		RTW_INFO("radiotap len (should be 14): %d\n", rtap_len);
-		goto fail;
-	}
-
-	/* Skip the ratio tap header */
+	/* Skip the radiotap header */
 	skb_pull(skb, rtap_len);
 
 	dot11_hdr = (struct rtw_ieee80211_hdr *)skb->data;
@@ -4491,42 +4506,22 @@ static int rtw_cfg80211_monitor_if_xmit_entry(struct sk_buff *skb, struct net_de
 
 		return ret;
 
-	} else if ((frame_ctl & (RTW_IEEE80211_FCTL_FTYPE | RTW_IEEE80211_FCTL_STYPE))
-		== (RTW_IEEE80211_FTYPE_MGMT | RTW_IEEE80211_STYPE_ACTION)
-	) {
-		/* only for action frames */
+	} else if ((frame_ctl & RTW_IEEE80211_FCTL_FTYPE) == RTW_IEEE80211_FTYPE_MGMT) {
+		/* support all injected management frames (deauth, disassoc, probe, beacon, action) */
 		struct xmit_frame		*pmgntframe;
 		struct pkt_attrib	*pattrib;
 		unsigned char	*pframe;
-		/* u8 category, action, OUI_Subtype, dialogToken=0; */
-		/* unsigned char	*frame_body; */
 		struct rtw_ieee80211_hdr *pwlanhdr;
 		struct xmit_priv	*pxmitpriv = &(padapter->xmitpriv);
 		struct mlme_ext_priv	*pmlmeext = &(padapter->mlmeextpriv);
 		u8 *buf = skb->data;
 		u32 len = skb->len;
-		u8 category, action;
+#ifdef CONFIG_P2P
 		int type = -1;
 
-		if (rtw_action_frame_parse(buf, len, &category, &action) == _FALSE) {
-			RTW_INFO(FUNC_NDEV_FMT" frame_control:0x%x\n", FUNC_NDEV_ARG(ndev),
-				le16_to_cpu(((struct rtw_ieee80211_hdr_3addr *)buf)->frame_ctl));
-			goto fail;
-		}
-
-		RTW_INFO("RTW_Tx:da="MAC_FMT" via "FUNC_NDEV_FMT"\n",
-			MAC_ARG(GetAddr1Ptr(buf)), FUNC_NDEV_ARG(ndev));
-		#ifdef CONFIG_P2P
 		type = rtw_p2p_check_frames(padapter, buf, len, _TRUE);
-		if (type >= 0)
-			goto dump;
-		#endif
-		if (category == RTW_WLAN_CATEGORY_PUBLIC)
-			RTW_INFO("RTW_Tx:%s\n", action_public_str(action));
-		else
-			RTW_INFO("RTW_Tx:category(%u), action(%u)\n", category, action);
+#endif
 
-dump:
 		/* starting alloc mgmt frame to dump it */
 		pmgntframe = alloc_mgtxmitframe(pxmitpriv);
 		if (pmgntframe == NULL)
@@ -4554,7 +4549,6 @@ dump:
 		pmlmeext->mgnt_seq = GetSequence(pwlanhdr);
 		pattrib->seqnum = pmlmeext->mgnt_seq;
 		pmlmeext->mgnt_seq++;
-
 
 		pattrib->last_txcmdsz = pattrib->pktlen;
 
@@ -4659,11 +4653,12 @@ static int rtw_cfg80211_add_monitor_if(_adapter *padapter, char *name, struct ne
 	mon_wdev->wiphy = padapter->rtw_wdev->wiphy;
 	mon_wdev->netdev = mon_ndev;
 	mon_wdev->iftype = NL80211_IFTYPE_MONITOR;
-	mon_ndev->ieee80211_ptr = mon_wdev;
 
 	ret = register_netdevice(mon_ndev);
 	if (ret)
 		goto out;
+
+	mon_ndev->ieee80211_ptr = mon_wdev;
 
 	*ndev = pwdev_priv->pmon_ndev = mon_ndev;
 	_rtw_memcpy(pwdev_priv->ifname_mon, name, IFNAMSIZ + 1);

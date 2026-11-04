@@ -1800,7 +1800,7 @@ void Supported_rate_infra_ap(_adapter *padapter, PNDIS_802_11_VARIABLE_IEs pIE)
 	if (pIE == NULL)
 		return;
 
-	for (i = 0 ; i < pIE->Length; i++)
+	for (i = 0 ; i < pIE->Length && i < NDIS_802_11_LENGTH_RATES_EX; i++)
 		pmlmeinfo->SupportedRates_infra_ap[i] = (pIE->data[i]);
 
 }
@@ -1819,7 +1819,7 @@ void Extended_Supported_rate_infra_ap(_adapter *padapter, PNDIS_802_11_VARIABLE_
 			if (pmlmeinfo->SupportedRates_infra_ap[i] == 0)
 				break;
 		}
-		for (j = 0; j < pIE->Length; j++)
+		for (j = 0; j < pIE->Length && (i + j) < NDIS_802_11_LENGTH_RATES_EX; j++)
 			pmlmeinfo->SupportedRates_infra_ap[i+j] = (pIE->data[j]);
 	}
 
@@ -1905,7 +1905,7 @@ void HT_caps_handler(_adapter *padapter, PNDIS_802_11_VARIABLE_IEs pIE)
 
 	pmlmeinfo->HT_caps_enable = 1;
 
-	for (i = 0; i < (pIE->Length); i++) {
+	for (i = 0; i < (pIE->Length) && i < sizeof(pmlmeinfo->HT_caps.u.HT_cap); i++) {
 		if (i != 2) {
 			/*	Commented by Albert 2010/07/12 */
 			/*	Got the endian issue here. */
